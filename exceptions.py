@@ -4,6 +4,12 @@ class AmbiguousException(Exception):
     pass
 
 
+class FailSendMessage(Exception):
+    """Не удалось отправить сообщение."""
+
+    pass
+
+
 class KeyNotFoundException(Exception):
     """Отсутствие ожидаемых ключей в ответе API."""
 

@@ -47,9 +47,11 @@ def send_message(bot: telegram.Bot, message: str) -> None:
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
     except telegram.error.TelegramError as error:
-        logging.error(error)
+        hw_logger.exception(
+            f'Боту не удалось отправить сообщение: {message}. {error}'
+        )
     else:
-        logging.debug(f"Бот отправил сообщение: {message}")
+        hw_logger.debug(f"Бот отправил сообщение: {message}")
 
 
 def get_api_answer(timestamp: int) -> dict:
@@ -148,7 +150,7 @@ if __name__ == '__main__':
     hw_logger.setLevel(logging.DEBUG)
 
     stream_handler = logging.StreamHandler(sys.stdout)
-    file_handler = logging.FileHandler("main.log", encoding='UTF-8')
+    file_handler = logging.FileHandler("main.log")
     formatter = logging.Formatter(
         '%(asctime)s, %(name)s, %(levelname)s, %(message)s, %(lineno)d'
     )
