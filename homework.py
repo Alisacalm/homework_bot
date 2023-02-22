@@ -1,12 +1,14 @@
 import sys
 import logging
 import os
+import json
 
 import requests
 from requests.exceptions import RequestException
 import telegram
 import time
 
+from http import HTTPStatus
 from dotenv import load_dotenv
 
 import exceptions
@@ -28,21 +30,16 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+hw_logger = logging.getLogger(__name__)
+
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    env_var = [
-        PRACTICUM_TOKEN,
-        TELEGRAM_TOKEN,
-        TELEGRAM_CHAT_ID
-    ]
-    for var in env_var:
-        if not var:
-            logging.critical(
-                'Отсутствует обязательная переменная окружения: "{}" '
-                'Программа принудительно остановлена.'.format(var)
-            )
-            sys.exit()
+    return all(
+        [PRACTICUM_TOKEN,
+         TELEGRAM_TOKEN,
+         TELEGRAM_CHAT_ID]
+    )
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
@@ -61,12 +58,18 @@ def get_api_answer(timestamp: int) -> dict:
         result = requests.get(ENDPOINT, headers=HEADERS, params=timestamp)
     except RequestException as error:
         raise exceptions.AmbiguousException(error)
-    if result.status_code != 200:
+    if result.status_code != HTTPStatus.OK:
         raise exceptions.UnreachableEndpoint(
             f'Эндпоинт {ENDPOINT} недоступен. '
             f'Код ответа API: {result.status_code}'
         )
-    return result.json()
+    try:
+        return result.json()
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            f'Возникли трудности при приведении '
+            f'ответа API к типам данных Python: {error}'
+        )
 
 
 def check_response(response: dict) -> None:
@@ -103,7 +106,14 @@ def parse_status(homework: list) -> str:
 
 def main():
     """Основная логика работы бота."""
-    check_tokens()
+    env_var = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
+    for var in env_var:
+        if not check_tokens():
+            hw_logger.critical(
+                'Отсутствует обязательная переменная окружения: "{}" '
+                'Программа принудительно остановлена.'.format(var)
+            )
+            sys.exit()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
@@ -112,29 +122,40 @@ def main():
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
-            if len(homeworks) > 0:
+            if homeworks:
                 homework = homeworks[0]
+            hw_logger.debug('Пока нет актуальной домашки')
+
+            prev_status = ''
+            if homework['status'] is not prev_status:
                 message = parse_status(homework)
                 send_message(bot, message)
-
-            logging.debug('Статус домашней работы не изменился')
+                prev_status = homework['status']
+            hw_logger.debug('Статус домашней работы не изменился')
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            logging.error(error)
-            send_message(bot, message)
+            hw_logger.error(message)
+            prev_error = ''
+            if str(error) is not str(prev_error):
+                send_message(bot, message)
+                prev_error = error
         finally:
             time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s, %(levelname)s, %(message)s, %(name)s, %(lineno)d',
-        handlers=[
-            logging.FileHandler("main.log", mode='a'),
-            logging.StreamHandler(sys.stdout)
-        ]
+    hw_logger.setLevel(logging.DEBUG)
+
+    stream_handler = logging.StreamHandler(sys.stdout)
+    file_handler = logging.FileHandler("main.log", encoding='UTF-8')
+    formatter = logging.Formatter(
+        '%(asctime)s, %(name)s, %(levelname)s, %(message)s, %(lineno)d'
     )
+
+    hw_logger.addHandler(stream_handler)
+    hw_logger.addHandler(file_handler)
+    stream_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
 
     main()
