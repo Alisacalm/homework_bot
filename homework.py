@@ -1,23 +1,28 @@
-import sys
+import json
 import logging
 import os
-import json
+import sys
+import time
+from http import HTTPStatus
 
 import requests
-from requests.exceptions import RequestException
 import telegram
-import time
-
-from http import HTTPStatus
 from dotenv import load_dotenv
+from requests.exceptions import RequestException
 
 import exceptions
 
 load_dotenv()
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN'),
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN'),
+TELEGRAM_TOKEN: str = os.getenv('TELEGRAM_TOKEN'),
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+
+env_var = {
+    'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+    'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+    'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID
+}
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -35,11 +40,7 @@ hw_logger = logging.getLogger(__name__)
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    return all(
-        [PRACTICUM_TOKEN,
-         TELEGRAM_TOKEN,
-         TELEGRAM_CHAT_ID]
-    )
+    return all((PRACTICUM_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_TOKEN))
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
@@ -47,8 +48,8 @@ def send_message(bot: telegram.Bot, message: str) -> None:
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
     except telegram.error.TelegramError as error:
-        hw_logger.exception(
-            f'Боту не удалось отправить сообщение: {message}. {error}'
+        hw_logger.error(
+            f'Боту не удалось отправить сообщение: "{message}". {error}'
         )
     else:
         hw_logger.debug(f"Бот отправил сообщение: {message}")
@@ -108,14 +109,12 @@ def parse_status(homework: list) -> str:
 
 def main():
     """Основная логика работы бота."""
-    env_var = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    for var in env_var:
-        if not check_tokens():
-            hw_logger.critical(
-                'Отсутствует обязательная переменная окружения: "{}" '
-                'Программа принудительно остановлена.'.format(var)
-            )
-            sys.exit()
+    if not check_tokens():
+        hw_logger.critical(
+            'Отсутствует обязательная переменная окружения. '
+            'Программа принудительно остановлена.'
+        )
+        sys.exit()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
