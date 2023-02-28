@@ -14,8 +14,8 @@ import exceptions
 
 load_dotenv()
 
-PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN'),
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN'),
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 env_var = {
@@ -57,8 +57,9 @@ def send_message(bot: telegram.Bot, message: str) -> None:
 
 def get_api_answer(timestamp: int) -> dict:
     """Делает запрос к эндпоинту API-сервиса."""
+    params = {'from_date': timestamp}
     try:
-        result = requests.get(ENDPOINT, headers=HEADERS, params=timestamp)
+        result = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except RequestException as error:
         raise exceptions.AmbiguousException(error)
     if result.status_code != HTTPStatus.OK:
@@ -119,20 +120,21 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
 
+    prev_status = ''
+
     while True:
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
             if homeworks:
                 homework = homeworks[0]
-            hw_logger.debug('Пока нет актуальной домашки')
 
-            prev_status = ''
-            if homework['status'] is not prev_status:
-                message = parse_status(homework)
-                send_message(bot, message)
-                prev_status = homework['status']
-            hw_logger.debug('Статус домашней работы не изменился')
+                if homework['status'] is not prev_status:
+                    message = parse_status(homework)
+                    send_message(bot, message)
+                    prev_status = homework['status']
+                hw_logger.debug('Статус домашней работы не изменился')
+            hw_logger.debug('Пока нет актуальной домашки')
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
