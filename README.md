@@ -17,11 +17,11 @@ cd api_final_yatube
 ```
 python/python3 -m venv env
 ```
-* Если у вас Linux/macOS
+    * Если у вас Linux/macOS
 ```
 source env/bin/activate
 ```
-* Если у вас windows
+    * Если у вас windows
 ```
 source env/scripts/activate
 ```
